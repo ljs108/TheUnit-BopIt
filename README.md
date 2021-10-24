@@ -13,3 +13,9 @@ Hi ya!
 My name is Todd Marzec and I am a EE. I like hockey, soccer and reading textbooks! I too ate chip today and it was sub par at best.
 
 See ya around.
+
+Hello Fellas:
+
+My name is Ryan Estatico and I am also an EE. I like weekends and smashing exams! I ate left over walking tacos today. It was dissapointing.
+
+Come to class on Monday!
