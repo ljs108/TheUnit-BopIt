@@ -19,3 +19,10 @@ Hello Fellas:
 My name is Ryan Estatico and I am also an EE. I like weekends and smashing exams! I ate left over walking tacos today. It was dissapointing.
 
 Come to class on Monday!
+
+
+Greetings!
+
+I am Will Sneathen. I am an EE major at Pitt.  I enjoy playing guitar, cooking, and being exactly on time to class.  I had a Slim Jim on the drive back to school, which was a terrible decision.
+
+Thanks for reading.
