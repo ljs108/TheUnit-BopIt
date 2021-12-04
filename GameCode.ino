@@ -6,6 +6,7 @@
 #include <SD.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include <stdio.h>  
 #include <Chrono.h>
 #include <LightChrono.h>
@@ -17,28 +18,28 @@ using namespace std;
 LiquidCrystal_I2C lcd(0x27,20,4);  // set the LCD address to 0x27 for a 20 chars and 4 line display
 MPU6050 mpu(Wire);
 TMRpcm audioPlayer;
+TMRpcm audioDirection;
 int numberCorrectMoves = 0;
 double timeForEachMove = 5;
+boolean inGame = false;
+boolean alreadyInit = false;
 
-void setup() {
+void setup() { 
+  srand(time(NULL));
   //call function to set up all the components
   setUpComponents();
-
-  //introduction to the game
-  introduction();
 }
 
 //called when power is turned on
 void loop() {
-  
-  //read yellow button input to see if high
-  if (digitalRead(8) == HIGH) {
-    //power yellow button down
-    digitalWrite(7, LOW);
-
-    delay(2000);
-    game();
-  }
+      
+    //read yellow button input to see if high
+    if (digitalRead(8) == HIGH) {
+      //power yellow button down
+      digitalWrite(7, LOW);
+      delay(2000);
+      game();
+    }
 }
 
 void introduction() {
@@ -60,10 +61,17 @@ void introduction() {
   lcd.print("Press the Yellow");
   lcd.setCursor(3,2);
   lcd.print("Button to play!");
+
+  audioDirection.loop(0);
+  audioDirection.play("PY.wav");
+  delay(1200);
+  audioPlayer.loop(1);
+  audioPlayer.play("cash.wav",15);
   
 }
 
 void setUpComponents() {
+  if (alreadyInit == false) {
   //initalize lcd
   lcd.clear();  
   lcd.init();       
@@ -89,14 +97,24 @@ void setUpComponents() {
   mpu.calcOffsets(true,true);
 
   //initialize audio
-  audioPlayer.speakerPin = 9;
-  while(!SD.begin(SD_ChipSelectPin)){
+    alreadyInit = true;
+    audioPlayer.speakerPin = 9;
+    audioDirection.speakerPin = 9;
+
+    while(!SD.begin(SD_ChipSelectPin)){
+      lcd.setCursor(0,2);
+      lcd.print("Plug in SD card!");
+    }
+
+    audioDirection.setVolume(7);
+    audioDirection.loop(0);
+    audioPlayer.setVolume(5);
+    audioPlayer.loop(1);
+    audioPlayer.play("cash.wav"); 
   }
 
-  audioPlayer.setVolume(5);
-  audioPlayer.loop(1);
-  audioPlayer.play("test.wav");
-  
+  //introduction to the game
+  introduction();
 }
 
 void setNumberCorrectMoves(int input) {
@@ -110,6 +128,7 @@ void setTimeForEachMove(double input) {
 void game() {
   //Initialize game
   setNumberCorrectMoves(0);
+  setTimeForEachMove(5);
 
   boolean isCorrect = true;
 
@@ -119,9 +138,15 @@ void game() {
     int action = 1 + (rand()%3);
 
     lcd.clear();
+
+    //check number of correct moves
+    if(numberCorrectMoves == 100) {
+      isCorrect = false;
+    }
+    
     
     //Based off number call the action for the corresponding component
-    if (action == 1) {
+    else if (action == 1) {
       isCorrect = executeJoystick();
     }
     else if(action == 2) {
@@ -130,38 +155,57 @@ void game() {
     else if(action == 3) {
       isCorrect = executeGyro();
     }
-
-    //check number of correct moves
-    if(numberCorrectMoves == 99) {
-      youWin();
-    }
   }
-  
-  endGame();
+
+  //check number of correct moves
+  if(numberCorrectMoves == 10) {
+    youWin();
+  }
+  else {
+    endGame();  
+  }
 }
 
 void endGame() {
   //Display losing message on LCD
   lcd.clear();
-  lcd.setCursor(5,0);   //Set cursor to character 2 on line 0
-  lcd.print("Incorrect!");
-  lcd.setCursor(6,1);
+  lcd.setCursor(6,0);
   lcd.print("You lose!");
-  lcd.setCursor(2,2);
+  lcd.setCursor(2,1);
   lcd.print("Please try again.");
+  lcd.setCursor(0,3);
+  lcd.print("Final Score: " + (String)numberCorrectMoves);
+
+  audioDirection.loop(0);
+  audioDirection.play("L.wav");
+  delay(4000);
+  audioPlayer.play("cash.wav",15);
 
   delay(5000);
-  setup();
-  
+  setNumberCorrectMoves(0);
+  setTimeForEachMove(5);
+  setUpComponents();
 }
 
 void youWin() {
   //Display winning message on LCD
   lcd.clear();
-  lcd.setCursor(6,1);  
+  lcd.setCursor(6,0);  
   lcd.print("You WIN!");
-  lcd.setCursor(1,2);  
+  lcd.setCursor(1,1);  
   lcd.print("*Congratulations*");
+  lcd.setCursor(0,3);
+  lcd.print("Final Score: " + (String)numberCorrectMoves);
+
+  audioDirection.loop(0);
+  audioDirection.play("W.wav");
+  delay(4000);
+  audioPlayer.play("cash.wav",15);
+
+  delay(10000);
+  setNumberCorrectMoves(0);
+  setTimeForEachMove(5);
+  setUpComponents();
 }
     
 boolean executeJoystick() {
@@ -169,6 +213,7 @@ boolean executeJoystick() {
   int incorrectOtherMax = 1023;
   int incorrectOtherMin = 0;
   String moveDirectionString = "";
+  char instruction[] = "  .wav";
   
   int xValue = 524;
   int yValue = 524;
@@ -179,34 +224,69 @@ boolean executeJoystick() {
 
   if (moveDirection == 1) {
     moveDirectionString = "UP";
+    instruction[0] = 'J';
+    instruction[1] = 'U';
   }
   else if (moveDirection == 2) {
     moveDirectionString = "DOWN";
     correctDirection = 0;
     incorrectDirection = 1023;
+    instruction[0] = 'J';
+    instruction[1] = 'D';
   }
   else if (moveDirection == 3) {
     moveDirectionString = "LEFT";
     correctDirection = 0;
     incorrectDirection = 1023;
+    instruction[0] = 'J';
+    instruction[1] = 'L';
   }
   else if (moveDirection == 4) {
     moveDirectionString = "RIGHT";
+    instruction[0] = 'J';
+    instruction[1] = 'R';
   }
   
   //announce joystick command
-  lcd.setCursor(round((20 - moveDirectionString.length())/2),1);
+  String message = "Joystick: " + moveDirectionString;
+  lcd.setCursor(round((20 - message.length())/2),1);
   lcd.print("Joystick: " + moveDirectionString);
   lcd.setCursor(0,3);
-  lcd.print("Count: " + (String)numberCorrectMoves);
+  lcd.print("Score: " + (String)numberCorrectMoves);
+
+  audioDirection.loop(0);
+  audioDirection.play(instruction);
+  delay(1500);
+  audioPlayer.play("cash.wav",15);
 
   // start measuring time
   Chrono timer;
   timer.restart();
 
+  mpu.update();
+  double x = mpu.getGyroX();
+  double y = mpu.getGyroY();
+  double newx = mpu.getGyroX();
+  double newy = mpu.getGyroY();
+
   boolean correct = false;
   //loop while elasped time is less than time for each move
   while(timer.elapsed()/1000 <= timeForEachMove && ( xValue <= 1022 && xValue >= 1 && yValue <= 1022 && yValue >= 1)) {
+
+    //gyro read
+    mpu.update();
+    newx = mpu.getGyroX();
+    newy = mpu.getGyroY();
+  
+    if (abs(newx) - abs(x) > 5 && abs(newy) - abs(y) > 5) {
+      return false;
+    }
+  
+    //button read
+    if (digitalRead(4) == HIGH || digitalRead(8) == HIGH) {
+      return false;
+    }
+    
     // Read analog port values A0 and A1  
     xValue = analogRead(A0);  
     yValue = analogRead(A1);
@@ -241,7 +321,7 @@ boolean executeJoystick() {
     //announce correct
     lcd.setCursor(0,1);   //Set cursor to character 0 on line 0
     lcd.print("    Correct Move!   ");
-    delay(2000);
+    delay(1000);
   }
   else if (correct == false) {
     return false;
@@ -257,6 +337,7 @@ boolean executeButtons() {
   int movePin = 0;
   int otherPin;
   String pressButtonString = "YELLOW";
+  char instruction[] = "  .wav";
  
   //decide what move to do by random generation
   int pressButton = 1 + (rand()%2);
@@ -268,6 +349,8 @@ boolean executeButtons() {
     digitalWrite(3, HIGH);
     movePin = 8;
     otherPin = 4;
+    instruction[0] = 'P';
+    instruction[1] = 'Y';
   }
   else if (pressButton == 2) {
     pressButtonString = "BLUE";
@@ -276,35 +359,87 @@ boolean executeButtons() {
     digitalWrite(3, HIGH);
     movePin = 4;
     otherPin = 8;
+    instruction[0] = 'P';
+    instruction[1] = 'B';
   }
   
   //announce button command
-  lcd.setCursor(round((20 - pressButtonString.length())/2),1);
+  String message = "Press: " + pressButtonString;
+  lcd.setCursor(round((20 - message.length())/2),1);
   lcd.print("Press: " + pressButtonString);
   lcd.setCursor(0,3);
-  lcd.print("Correct: " + (String)numberCorrectMoves);
+  lcd.print("Score: " + (String)numberCorrectMoves);
+
+  audioDirection.loop(0);
+  audioDirection.play(instruction);
+  delay(1200);
+  audioPlayer.play("cash.wav",15);
 
   // start measuring time
   Chrono timer;
   timer.restart();
 
+  //joystick read
+  int xValue = analogRead(A0);  
+  int yValue = analogRead(A1);
+  int newxValue = analogRead(A0);  
+  int newyValue = analogRead(A1);
+
+  //gyro read
+  mpu.update();
+  double x = mpu.getGyroX();
+  double y = mpu.getGyroY();
+  double newx = mpu.getGyroX();
+  double newy = mpu.getGyroY();
+
   boolean answeredInTime = false;
+
+  boolean movePinPressed = false;
+  boolean otherPinPressed = false;
   
   //loop while elasped time is less than time for each move
-  while(timer.elapsed()/1000 <= timeForEachMove) {
-    if (digitalRead(movePin) == HIGH) {
-      answeredInTime = true;
-      //announce correct
-      lcd.setCursor(0,1);   //Set cursor to character 0 on line 0
-      lcd.print("    Correct Move!   ");
-      delay(2000);
-    }
-    if (digitalRead(otherPin) == HIGH) {
-      //RESET buttons to low
-      digitalWrite(7, LOW);
-      digitalWrite(3, LOW);
+  while(timer.elapsed()/1000 <= timeForEachMove && (movePinPressed == false && otherPinPressed == false)) {
+
+    //joystick read
+    newxValue = analogRead(A0);  
+    newyValue = analogRead(A1);
+    if (abs(newxValue) - abs(xValue) > 10 && abs(newyValue) - abs(yValue) > 10) {
       return false;
     }
+  
+    //gyro read
+    mpu.update();
+    newx = mpu.getGyroX();
+    newy = mpu.getGyroY();
+    if (abs(newx) - abs(x) > 5 && abs(newy) - abs(y) > 5) {
+      return false;
+    }
+
+    if (digitalRead(movePin) == HIGH) {
+      movePinPressed = true;
+    }
+
+    if (digitalRead(otherPin) == HIGH) {
+      otherPinPressed = true;
+    }
+  }
+
+  if (movePinPressed == true) {
+    answeredInTime = true;
+    //announce correct
+    lcd.setCursor(0,1);   //Set cursor to character 0 on line 0
+    lcd.print("    Correct Move!   ");
+    delay(1000);
+    //RESET buttons to low
+    digitalWrite(7, LOW);
+    digitalWrite(3, LOW);
+  }
+  
+  if (otherPinPressed == true) {
+    //RESET buttons to low
+    digitalWrite(7, LOW);
+    digitalWrite(3, LOW);
+    return false;
   }
   
   //if you did not answer in time return false
@@ -316,10 +451,6 @@ boolean executeButtons() {
   }
   setNumberCorrectMoves(numberCorrectMoves + 1);
   setTimeForEachMove(timeForEachMove - 0.05);
-
-  //RESET buttons to low
-  digitalWrite(7, LOW);
-  digitalWrite(3, LOW);
   return true;
 }
 
@@ -327,6 +458,7 @@ boolean executeGyro() {
   
   //initialize movePin
   String tiltDirectionString = "";
+  char instruction[] = "  .wav";
 
   int threshold = 0;
 
@@ -338,50 +470,87 @@ boolean executeGyro() {
   int moveDirection = 1 + (rand()%4);
 
   if (moveDirection == 1) {
-    tiltDirectionString = "TILT UP";
-    threshold = -150;
+    tiltDirectionString = "UP";
+    threshold = -50;
+
+    instruction[0] = 'T';
+    instruction[1] = 'U';
   }
   else if (moveDirection == 2) {
-    tiltDirectionString = "TILT DOWN";
-    threshold = 150;
+    tiltDirectionString = "DOWN";
+    threshold = 50;
+    
+    instruction[0] = 'T';
+    instruction[1] = 'D';
   }
   else if (moveDirection == 3) {
-    tiltDirectionString = "TILT LEFT";
-    threshold = -150;
+    tiltDirectionString = "LEFT";
+    threshold = -50;
+    
+    instruction[0] = 'T';
+    instruction[1] = 'L';
   }
   else if (moveDirection == 4) {
-    tiltDirectionString = "TILT RIGHT";
-    threshold = 150;
+    tiltDirectionString = "RIGHT";
+    threshold = 50;
+
+    instruction[0] = 'T';
+    instruction[1] = 'R';
   }
   
   //announce gyro command
-  lcd.setCursor(round((20 - tiltDirectionString.length())/2),1);
-  lcd.print("Gyro: " + tiltDirectionString);
+  String message = "Tilt: " + tiltDirectionString;
+  lcd.setCursor(round((20 - message.length())/2),1);
+  lcd.print("Tilt: " + tiltDirectionString);
   lcd.setCursor(0,3);
-  lcd.print("Correct: " + (String)numberCorrectMoves);
+  lcd.print("Score: " + (String)numberCorrectMoves);
+
+  audioDirection.loop(0);
+  audioDirection.play(instruction);
+  delay(1000);
+  audioPlayer.play("cash.wav",15);
 
   // start measuring time
   Chrono timer;
   timer.restart();
 
-  while(timer.elapsed()/1000 <= timeForEachMove && (x <= 150 && x >= -150 && y <= 150 && y >= -150)) {
+  //joystick read
+  int xValue = analogRead(A0);  
+  int yValue = analogRead(A1);
+  int newxValue = analogRead(A0);  
+  int newyValue = analogRead(A1);
+
+  while(timer.elapsed()/1000 <= timeForEachMove && (x <= 50 && x >= -50 && y <= 50 && y >= -50)) {
+
+    //joystick read
+    newxValue = analogRead(A0);  
+    newyValue = analogRead(A1);
+    if (abs(newxValue) - abs(xValue) > 10 && abs(newyValue) - abs(yValue) > 10) {
+      return false;
+    }
+  
+    //button read
+    if (digitalRead(4) == HIGH || digitalRead(8) == HIGH) {
+      return false;
+    }
+    
     mpu.update();
     x = mpu.getGyroX();
     y = mpu.getGyroY();
     if (moveDirection == 1) {
-      if(x <= threshold && x <= 150 && y <= 150 && y >= -150) {
+      if(x <= threshold && x <= 50 && y <= 50 && y >= -50) {
         correct = true;
       }
     } else if (moveDirection == 2) {
-      if(x >= threshold && x >= -150 && y <= 150 && y >= -150) {
+      if(x >= threshold && x >= -50 && y <= 50 && y >= -50) {
         correct = true;
       }
     } else if (moveDirection == 3) {
-      if(y <= threshold && y <= 150 && x <= 150 && x >= -150) {
+      if(y <= threshold && y <= 50 && x <= 50 && x >= -50) {
         correct = true;
       }
     } else if (moveDirection == 4) {
-      if(y >= threshold && y >= -150 && x <= 150 && x >= -150) {
+      if(y >= threshold && y >= -50 && x <= 50 && x >= -50) {
         correct = true;
       } 
     }
@@ -391,7 +560,7 @@ boolean executeGyro() {
     //announce correct
     lcd.setCursor(0,1);   //Set cursor to character 0 on line 0
     lcd.print("    Correct Move!   ");
-    delay(2000);
+    delay(1000);
   }
   else if (correct == false) {
     return false;
